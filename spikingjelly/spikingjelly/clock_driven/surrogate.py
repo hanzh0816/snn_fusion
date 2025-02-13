@@ -108,6 +108,23 @@ def check_cuda_grad(neu: nn.Module, surrogate_function, device, *args, **kwargs)
         print('python grad', x_grad_py[idx])
         print('cupy   grad', x_grad_cp[idx])
 
+class quant4(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, input):
+        #         print("quant")
+        ctx.save_for_backward(input)
+        return torch.round(torch.clamp(input, min=0, max=4))
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        (input,) = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        #             print("grad_input:",grad_input)
+        grad_input[input < 0] = 0
+        grad_input[input > 4] = 0
+        return grad_input
+
 
 class SurrogateFunctionBase(nn.Module):
     def __init__(self, alpha, spiking=True):
@@ -410,6 +427,17 @@ class sigmoid(torch.autograd.Function):
 
         return grad_x, None
 
+class QuantSigmoid(SurrogateFunctionBase):
+    def __init__(self, alpha=4.0, spiking=True):
+        super().__init__(alpha, spiking)
+    
+    @staticmethod
+    def spiking_function(x, alpha):
+        # tag: I-LIF神经元
+        return quant4.apply(x)
+    
+    def primitive_function(self, x: torch.Tensor, alpha):
+        return sigmoid.apply(x, alpha)
 
 class Sigmoid(SurrogateFunctionBase):
     def __init__(self, alpha=4.0, spiking=True):

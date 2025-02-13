@@ -734,9 +734,19 @@ class LIFNode(BaseNode):
             return super().forward(x)
 
 class MultiStepLIFNode(LIFNode):
-    def __init__(self, tau: float = 2., decay_input: bool = True, v_threshold: float = 1.,
-                 v_reset: float = 0., surrogate_function: Callable = surrogate.Sigmoid(),
-                 detach_reset: bool = False, backend='torch', lava_s_cale=1 << 6):
+
+    def __init__(
+        self,
+        tau: float = 2.0,
+        decay_input: bool = True,
+        v_threshold: float = 1.0,
+        v_reset: float = 0.0,
+        surrogate_function: Callable = surrogate.Sigmoid(),
+        ilif: bool = False,
+        detach_reset: bool = False,
+        backend="torch",
+        lava_s_cale=1 << 6,
+    ):
         """
         * :ref:`API in English <MultiStepLIFNode.__init__-en>`
 
@@ -817,16 +827,19 @@ class MultiStepLIFNode(LIFNode):
             and multi-step propagation.
 
         """
+        
+        self.ilif = ilif
+        if self.ilif:
+            surrogate_function = surrogate.QuantSigmoid()
         super().__init__(tau, decay_input, v_threshold, v_reset, surrogate_function, detach_reset)
-        self.register_memory('v_seq', None)
+        self.register_memory("v_seq", None)
 
         check_backend(backend)
-
         self.backend = backend
 
         self.lava_s_cale = lava_s_cale
 
-        if backend == 'lava':
+        if backend == "lava":
             self.lava_neuron = self.to_lava()
         else:
             self.lava_neuron = None
@@ -873,6 +886,23 @@ class MultiStepLIFNode(LIFNode):
         else:
             raise NotImplementedError(self.backend)
 
+    def neuronal_reset(self,spike):
+        if self.detach_reset:
+            spike_d = spike.detach()
+        else:
+            spike_d = spike
+
+        if self.v_reset is None:
+            # soft reset
+            # tag: I-LIF需要更改reset方式
+            if self.ilif:
+                self.v = self.v - spike_d
+            else:
+                self.v = self.v - spike_d * self.v_threshold
+
+        else:
+            # hard reset
+            self.v = (1. - spike_d) * self.v + spike_d * self.v_reset
     def extra_repr(self):
         return super().extra_repr() + f', backend={self.backend}'
 
@@ -1543,5 +1573,3 @@ class LIAFNode(LIFNode):
         spike = self.neuronal_fire()
         self.neuronal_reset(spike)
         return y
-
-
