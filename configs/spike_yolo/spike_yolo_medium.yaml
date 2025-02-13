@@ -1,0 +1,48 @@
+_BASE_: spike_yolo_base.yaml
+
+EXP_NAME: exp_m_0
+
+MODEL:
+  SCALES: [0.67, 0.75, 768]
+
+  HEAD:
+    NMS:
+      DYNAMIC_CONF: true
+      CONF_THRES: 0.0
+      EXP_K: 1.0
+
+DATASETS:
+  TRANSFORMS:
+    - name: Mosaic
+      mosaic_size: [1280, 1280]
+      close_mosaic_epoch: 20
+
+    - name: ResizeKeepRatio
+      short_edge_length: 640
+      max_size: 640
+      stride: 32
+      sample_style: choice
+
+    - name: RandomFlip
+
+DATALOADER:
+  BATCH_SIZE: 2
+  REFERENCE_BATCH_SIZE: 8
+  REFERENCE_WORLD_SIZE: 1
+
+SOLVER:
+  MAX_ITER: 600000 # around 50 epochs for total_batch_size=4
+  WARMUP_ITERS: 12000 # around 1 epoch
+  LR_SCHEDULER_NAME: WarmupCosineLR
+  BASE_LR: 2e-4
+  BASE_LR_END: 1e-6
+  AMP:
+    ENABLED: true
+
+TRAINING:
+  NUM_EPOCHS: 100
+  EVAL_PERIOD: 1
+  SYNC_BN: true
+
+WANDB:
+  PROJECT: snn_detection
