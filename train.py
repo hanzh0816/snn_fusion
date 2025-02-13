@@ -3,7 +3,6 @@ import os
 import profile
 import time
 import warnings
-import weakref
 from argparse import Namespace
 from logging import Logger
 from typing import Any, Dict, List, Optional, OrderedDict, Union
