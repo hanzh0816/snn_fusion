@@ -175,3 +175,4 @@ cython_debug/
 
 # logging dirs
 work_dirs/
+datasets/
