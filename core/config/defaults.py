@@ -131,6 +131,7 @@ _C.MODEL.HEAD.NMS.MULTI_LABEL = False
 # Dataset
 # -----------------------------------------------------------------------------
 _C.DATASETS = CN()
+_C.DATASETS.TYPE = ""
 # List of the dataset names for training. Must be registered in DatasetCatalog
 # Samples from these datasets will be merged and used as one dataset.
 _C.DATASETS.TRAIN = ""
@@ -151,7 +152,7 @@ _C.DATASETS.TRANSFORMS = []
 # -----------------------------------------------------------------------------
 _C.DATALOADER = CN()
 # Number of data loading threads
-_C.DATALOADER.NUM_WORKERS = 36
+_C.DATALOADER.NUM_WORKERS = 8
 # If True, each batch should contain only images for which the aspect ratio
 # is compatible. This groups portrait images together, and landscape images
 # are not batched with portrait images.

@@ -1,5 +1,6 @@
 import argparse
 import logging
+from math import sqrt
 import os
 import sys
 from argparse import Namespace
@@ -238,7 +239,8 @@ def auto_scale_workers(cfg, num_workers: int):
 
     scale = total_batch_size / reference_total_batch_size
     cfg.DATALOADER.TOTAL_BATCH_SIZE = total_batch_size
-    cfg.SOLVER.BASE_LR = cfg.SOLVER.BASE_LR * scale
+    cfg.SOLVER.BASE_LR = cfg.SOLVER.BASE_LR * sqrt(scale)
+    cfg.SOLVER.BASE_LR_END = cfg.SOLVER.BASE_LR_END * sqrt(scale)
     cfg.SOLVER.MAX_ITER = int(round(cfg.SOLVER.MAX_ITER / scale))
     cfg.SOLVER.WARMUP_ITERS = int(round(cfg.SOLVER.WARMUP_ITERS / scale))
     cfg.DATALOADER.REFERENCE_WORLD_SIZE = num_workers  # maintain invariant

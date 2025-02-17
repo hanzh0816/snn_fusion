@@ -252,6 +252,7 @@ MODEL:
     WEIGHT: [7.5, 0.5, 1.5]
 
 DATASETS:
+  TYPE: dsec
   TRAIN: dsec_train
   VAL: dsec_val
   TEST: dsec_test

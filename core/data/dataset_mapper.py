@@ -60,7 +60,7 @@ class MapDataset(data.Dataset):
             raise ValueError("The map_func does not have a set_epoch function.")
 
 
-class DatasetMapper:
+class DSECDatasetMapper:
     """
     A callable which takes a dataset dict in Detectron2 Dataset format,
     and map it into a format used by the model.
