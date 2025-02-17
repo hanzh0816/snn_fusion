@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from core.data.catalog import DatasetCatalog, MetadataCatalog
-from core.data.datasets.dsec.dsec import DSEC, DSEC_CATAGORIES
+from core.data.dataset.dsec.dsec import DSEC, DSEC_CATAGORIES
 
 
 def register_dsec(root, split, *args, **kwargs):
@@ -23,6 +23,6 @@ def register_all_dsec(root):
 
 
 if __name__.endswith(".builtin"):
-    _root = os.path.expanduser(os.getenv("DETECTRON2_DATASETS", "datasets"))
+    _root = os.path.expanduser(os.getenv("DATASETS_ROOT", "dataset"))
     register_all_dsec(_root)
     logging.getLogger(__name__).info("Registered all DSEC datasets")

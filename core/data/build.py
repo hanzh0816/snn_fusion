@@ -7,7 +7,7 @@ import torch.utils.data as torchdata
 from core.config.config import configurable
 from core.data.catalog import DatasetCatalog, MetadataCatalog
 from core.data.dataset_mapper import DSECDatasetMapper, MapDataset
-from core.data.datasets.dsec.dsec import dsec_collate_fn
+from core.data.dataset.dsec.dsec import dsec_collate_fn
 
 
 def _train_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=None):
