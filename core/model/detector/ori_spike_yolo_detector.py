@@ -15,7 +15,7 @@ from core.model import MODEL_REGISTRY
 from core.model.head.head_utils import non_max_suppression
 from core.model.loss.loss import v8DetectionLoss
 from core.structures.instances import Instances
-from .yolo_spikformer import *
+from core.model.module.yolo_spikformer import *
 import torch.nn as nn
 
 LOGGER = logging.getLogger(__name__)
@@ -207,12 +207,12 @@ def initialize_weights(model):
 
 
 @MODEL_REGISTRY.register()
-class SpikeYOLO_v0(nn.Module):
+class OriSpikeYOLO(nn.Module):
 
     @configurable
     def __init__(self, ch=3, nc=None, verbose=True, *args, **kwargs):
         super().__init__()
-        cfg = "/home/hzh/code/rgb_event_fusion/snn_fusion/core/model/temp_model/snn_yolov8.yaml"
+        cfg = "/home/hzh/code/rgb_event_fusion/snn_fusion/core/model/detector/snn_yolov8.yaml"
         self.yaml = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
 
         # Define model
@@ -252,6 +252,10 @@ class SpikeYOLO_v0(nn.Module):
             dfl_weight=1.5,
         )
         self.dfl = SpikeDFL(16)
+        
+        # tag: 为了对齐trainer框架，需要加入head模块并添加set_epoch方法
+        self.head = nn.Module()
+        self.head.set_epoch = lambda x: None
 
     @classmethod
     def from_config(cls, cfg):
