@@ -166,6 +166,7 @@ def build_trainer(cfg: CfgNode, args: Namespace):
     if args.debug:
         trainer_params["fast_dev_run"] = 10
         trainer_params["num_sanity_val_steps"] = 10
+        trainer_params["max_epochs"] = 1
 
     if cfg.SOLVER.AMP.ENABLED:
         trainer_params["precision"] = "16-mixed"
@@ -189,7 +190,7 @@ def train(trainer: Trainer, logger: Logger, cfg: CfgNode, args: Namespace):
     data_module = DataModule(cfg)
     if args.eval_only:
         logger.info("Running inference")
-        trainer.validate(module, data_module)
+        trainer.validate(model=module, datamodule=data_module, ckpt_path=ckpt_path)
     else:
         logger.info("Running training")
         trainer.fit(model=module, datamodule=data_module, ckpt_path=ckpt_path)
