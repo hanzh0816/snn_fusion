@@ -36,13 +36,15 @@ class Instances:
           confident_detections = instances[instances.scores > 0.9]
     """
 
-    def __init__(self, image_size: Tuple[int, int], **kwargs: Any):
+    def __init__(self, ori_image_size: Tuple[int, int], sample_idx: int = -1, **kwargs: Any):
         """
         Args:
             image_size (height, width): the spatial size of the image.
             kwargs: fields to add to this `Instances`.
         """
-        self._image_size = image_size
+        self._ori_image_size = ori_image_size
+        self._shape = ori_image_size  # 初始值等于ori_image_size
+        self._sample_idx = sample_idx  # 默认值-1表示没有sample_idx
         self._fields: Dict[str, Any] = {}
         for k, v in kwargs.items():
             self.set(k, v)
@@ -53,7 +55,7 @@ class Instances:
         Returns:
             tuple: height, width
         """
-        return self._image_size
+        return self._ori_image_size
 
     def __setattr__(self, name: str, val: Any) -> None:
         if name.startswith("_"):
@@ -114,7 +116,11 @@ class Instances:
         Returns:
             Instances: all fields are called with a `to(device)`, if the field has this method.
         """
-        ret = Instances(self._image_size)
+        ret = Instances(
+            self._ori_image_size,
+            self._sample_idx,
+        )
+        ret._shape = self._shape
         for k, v in self._fields.items():
             if hasattr(v, "to"):
                 v = v.to(*args, **kwargs)
@@ -136,7 +142,7 @@ class Instances:
             else:
                 item = slice(item, None, len(self))
 
-        ret = Instances(self._image_size)
+        ret = Instances(self._ori_image_size)
         for k, v in self._fields.items():
             ret.set(k, v[item])
         return ret
@@ -186,8 +192,8 @@ class Instances:
     def __str__(self) -> str:
         s = self.__class__.__name__ + "("
         s += "num_instances={}, ".format(len(self))
-        s += "image_height={}, ".format(self._image_size[0])
-        s += "image_width={}, ".format(self._image_size[1])
+        s += "image_height={}, ".format(self._ori_image_size[0])
+        s += "image_width={}, ".format(self._ori_image_size[1])
         s += "fields=[{}])".format(", ".join((f"{k}: {v}" for k, v in self._fields.items())))
         return s
 

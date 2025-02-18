@@ -199,6 +199,7 @@ class DSEC(Dataset):
         self.classes = ("car", "pedestrian")
         self.time_window = 1000000
         self.num_us = -1
+        self.use_cache = True
         self.debug = debug
 
         self.class_mapping = _compute_class_mapping(
@@ -246,6 +247,7 @@ class DSEC(Dataset):
         with open(cache_file, "wb") as f:
             pickle.dump(
                 {
+                    "sample_idx": index,
                     "image": image_0,
                     "events": events_map,
                     "image_ts_0": image_ts_0,
@@ -260,9 +262,8 @@ class DSEC(Dataset):
         if self.debug:
             return self._debug_get_item(index)
 
-        if not self.cache_root.exists():
+        if not self.cache_root.exists() or self.use_cache == False:
             return self._no_cache_get_item(index)
-            # self._cache_data()
 
         cache_file = self.cache_root / f"{index}.pkl"
         with open(cache_file, "rb") as f:
@@ -299,6 +300,7 @@ class DSEC(Dataset):
     def _debug_get_item(self, index):
         image_0, image_ts_0, events, detections_0, detections_1 = self._get_data(index)
         data = {
+            "sample_idx": index,
             "image": image_0,
             "events": events,
             "image_ts_0": image_ts_0,
@@ -327,6 +329,7 @@ class DSEC(Dataset):
         events = self._preprocess_events(events)
         events = self._preprocess_events_map(events)  # to events map
         data = {
+            "sample_idx": index,
             "image": image_0,
             "events": events,
             "image_ts_0": image_ts_0,

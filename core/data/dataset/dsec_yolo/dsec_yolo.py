@@ -178,8 +178,9 @@ class YOLODataset(Dataset):
         image, ori_shape = self.load_image(index)
         image = torch.Tensor(image).permute(0, 3, 1, 2)
         label = deepcopy(self.labels[index])
-        instances = self._preprocess_annotations(label, ori_shape)
+        instances = self._preprocess_annotations(label, index, ori_shape)
         return {
+            "sample_idx": index,
             "image": None,
             "events": image,
             "image_ts_0": 0,
@@ -188,7 +189,7 @@ class YOLODataset(Dataset):
         }
 
     @staticmethod
-    def _preprocess_annotations(label, shape):
+    def _preprocess_annotations(label, index, shape):
         def _preprocess_bbox(bboxes, width, height):
             new_bboxes = []
             for bbox in bboxes:
@@ -205,8 +206,8 @@ class YOLODataset(Dataset):
             return new_bboxes
 
         h, w = shape
-        target = Instances(shape)
-        target.gt_bboxes = Boxes(_preprocess_bbox(label["bboxes"], w, h))
+        target = Instances(ori_image_size=shape, sample_idx=index)
+        target.gt_bboxes = Boxes(_preprocess_bbox(label["bboxes"], width=w, height=h))
         classes = [int(cls) for cls in label["cls"]]
         classes = torch.tensor(classes, dtype=torch.int64)
         target.gt_classes = classes

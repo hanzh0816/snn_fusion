@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from core.data import TRANSFORMS_REGISTRY
+from core.data.preprocess_utils import preprocess_annotations
 from core.structures import Boxes, Instances
 
 
@@ -40,9 +41,9 @@ class Mosaic:
         indices = [random.randint(0, len(self.dataset) - 1) for _ in range(3)]
         dataset_dicts = [dataset_dict] + [self.dataset[i] for i in indices]
 
-        # 将标注进行预处理(第一个样本已经预处理过)
-        for i in range(1, len(dataset_dicts)):
-            dataset_dicts[i] = self._preprocess_annotations(dataset_dicts[i])
+        # 将标注进行预处理
+        for i in range(len(dataset_dicts)):
+            dataset_dicts[i] = preprocess_annotations(dataset_dicts[i])
 
         # 创建mosaic 图像/events
         dataset_dict = self._create_mosaic(dataset_dict, dataset_dicts)
@@ -76,7 +77,7 @@ class Mosaic:
         for idx, pos in enumerate(positions):
             scale = random.uniform(0.5, 1.5)
             h, w = (
-                dataset_dicts[idx]["image"].shape[:2]
+                dataset_dicts[idx]["image"].shape[:2]  # h,w,c
                 if self.modality != "events"
                 else dataset_dicts[idx]["events"].shape[2:]
             )
@@ -120,10 +121,16 @@ class Mosaic:
                 image = image[y1b:y2b, x1b:x2b]
                 mosaic_img[y1a:y2a, x1a:x2a] = image
 
-        target = Instances(image_size=[size_h, size_w])
+        # 创建新的实例信息(sample_idx为原图像的idx)
+        target = Instances(
+            ori_image_size=dataset_dict["ori_shape"], sample_idx=dataset_dict["sample_idx"]
+        )
+        #
+        target._shape = [size_h, size_w]
         target.gt_bboxes = Boxes(mosaic_bboxes)
         target.gt_classes = torch.tensor(mosaic_classes, dtype=torch.int64)
         dataset_dict["instances"] = target
+        dataset_dict["shape"] = [size_h, size_w]
         if self.modality != "image":
             dataset_dict["events"] = mosaic_events
         if self.modality != "events":
@@ -188,74 +195,6 @@ class Mosaic:
             classes.append(cls)
 
         return bboxes, classes
-
-    def _preprocess_events(self, events, ori_shape, num_time_bins):
-        """
-        Args:
-            - events (dict): 一个字典，包含以下键：
-                - "t" (np.ndarray): 事件的时间戳。
-                - "x" (np.ndarray): 事件的 x 坐标
-                - "y" (np.ndarray): 事件的 y 坐标
-                - "p" (np.ndarray): 事件的极性，取值为 1 或 -1(正极性或负极性)
-            - ori_shape (tuple): 图像的原始形状(height, width)。
-            - num_time_bins (int): 要分割的时间步数，用于将时间戳归一化到这个范围。
-        Returns:
-            - events_map (torch.Tensor): shape=(T, 2, H, W), 其中 T为分割时间步数num_time_bins
-
-        """
-        if self.modality == "image":
-            return None
-        t = np.array(events["t"])
-        x = np.array(events["x"])
-        y = np.array(events["y"])
-        p = np.array(events["p"])
-
-        # 归一化时间戳到 [0, num_time_bins)
-        t_min, t_max = t.min(), t.max()
-        t_bins = np.floor((t - t_min) / (t_max - t_min) * num_time_bins).astype(int)
-        t_bins[t_bins == num_time_bins] = num_time_bins - 1
-        # 初始化张量：T 时间步, C=2 极性, H 高度, W 宽度
-
-        height, width = ori_shape
-        events_map = np.zeros((num_time_bins, 2, height, width), dtype=np.float32)
-
-        for t_i, x_i, y_i, p_i in zip(t_bins, x, y, p):
-            if p_i == 1:  # 正极性
-                events_map[t_i, 0, y_i, x_i] += 1
-            elif p_i == -1:  # 负极性
-                events_map[t_i, 1, y_i, x_i] += 1
-
-        events_map = torch.Tensor(events_map)
-        return events_map
-
-    def _preprocess_annotations(self, dataset_dict: dict):
-        dataset_dict.pop("annotations_next", None)
-        # 已经是Instances类型
-        if dataset_dict.get("instances", None) is not None:
-            return dataset_dict
-
-        ori_annotations = dataset_dict.pop("annotations")
-        # 一个样本中的所有bbox
-        bboxes = [self._preprocess_bbox(obj) for obj in ori_annotations]
-
-        target = Instances(dataset_dict["ori_shape"])
-        target.gt_bboxes = Boxes(bboxes)
-
-        classes = [int(obj["class_id"]) for obj in ori_annotations]
-        classes = torch.tensor(classes, dtype=torch.int64)
-        target.gt_classes = classes
-
-        dataset_dict["instances"] = target
-        return dataset_dict
-
-    def _preprocess_bbox(self, bbox):
-        bbox = [bbox["x"], bbox["y"], bbox["w"], bbox["h"]]
-
-        # xywh -> xyxy_abs
-        bbox[2] = bbox[0] + bbox[2]
-        bbox[3] = bbox[1] + bbox[3]
-
-        return bbox
 
 
 @TRANSFORMS_REGISTRY.register()
@@ -343,6 +282,7 @@ class ResizeKeepRatio:
         dataset_dict["image"] = new_image
         dataset_dict["events"] = new_events
         dataset_dict["instances"] = new_annotations
+        dataset_dict["shape"] = [new_h, new_w]
         return dataset_dict
 
     def resize_image(self, image: np.ndarray, new_h, new_w):
@@ -436,6 +376,7 @@ class RandomFlip:
         dataset_dict["image"] = new_image
         dataset_dict["events"] = new_events
         dataset_dict["instances"] = new_annotations
+        # flip不改变shape，所以不需要更新shape
 
         return dataset_dict
 

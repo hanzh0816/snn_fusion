@@ -173,6 +173,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# VS Code settings
+.vscode/
+
 # logging dirs
 work_dirs/
 datasets/
