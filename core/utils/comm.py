@@ -76,80 +76,25 @@ def synchronize():
         dist.barrier()
 
 
-@functools.lru_cache()
-def _get_global_gloo_group():
-    """
-    Return a process group based on gloo backend, containing all the ranks
-    The result is cached.
-    """
-    if dist.get_backend() == "nccl":
-        return dist.new_group(backend="gloo")
+def gather(data):
+    # 获取当前进程的rank和总进程数
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+
+    # 初始化汇总列表（仅在rank=0）
+    gathered_list = [None] * world_size if rank == 0 else None
+
+    # 使用gather_object收集数据到rank=0
+    dist.gather_object(obj=data, object_gather_list=gathered_list, dst=0)
+
+    # rank=0处理并返回合并后的结果，其他进程返回None
+    if rank == 0:
+        all_data = []
+        for sublist in gathered_list:
+            all_data.extend(sublist)
+        return all_data
     else:
-        return dist.group.WORLD
-
-
-def gather(data, dst=0, group=None):
-    """
-    Run gather on arbitrary picklable data (not necessarily tensors).
-
-    Args:
-        data: any picklable object
-        dst (int): destination rank
-        group: a torch process group. By default, will use a group which
-            contains all ranks on gloo backend.
-
-    Returns:
-        list[data]: on dst, a list of data gathered from each rank. Otherwise,
-            an empty list.
-    """
-    if get_world_size() == 1:
-        return [data]
-    if group is None:
-        group = _get_global_gloo_group()
-    world_size = dist.get_world_size(group=group)
-    if world_size == 1:
-        return [data]
-    rank = dist.get_rank(group=group)
-
-    if rank == dst:
-        output = [None for _ in range(world_size)]
-        dist.gather_object(data, output, dst=dst, group=group)
-        return output
-    else:
-        dist.gather_object(data, None, dst=dst, group=group)
-        return []
-
-
-def reduce_dict(input_dict, average=True):
-    """
-    Reduce the values in the dictionary from all processes so that process with rank
-    0 has the reduced results.
-
-    Args:
-        input_dict (dict): inputs to be reduced. All the values must be scalar CUDA Tensor.
-        average (bool): whether to do average or sum
-
-    Returns:
-        a dict with the same keys as input_dict, after reduction.
-    """
-    world_size = get_world_size()
-    if world_size < 2:
-        return input_dict
-    with torch.no_grad():
-        names = []
-        values = []
-        # sort the keys so that they are consistent across processes
-        for k in sorted(input_dict.keys()):
-            names.append(k)
-            values.append(input_dict[k])
-        values = torch.stack(values, dim=0)
-        dist.reduce(values, dst=0)
-        if dist.get_rank() == 0 and average:
-            # only main process gets accumulated, so only divide by
-            # world_size in this case
-            values /= world_size
-        reduced_dict = {k: v for k, v in zip(names, values)}
-    return reduced_dict
+        return None
 
 
 def init_process_group():
