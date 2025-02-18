@@ -6,7 +6,7 @@ import torch.utils.data as torchdata
 
 from core.config.config import configurable
 from core.data.catalog import DatasetCatalog, MetadataCatalog
-from core.data.dataset_mapper import DSECDatasetMapper, MapDataset
+from core.data.dataset_mapper import DSECDatasetMapper, MapDataset, YOLODatasetMapper
 from core.data.dataset.dsec.dsec import dsec_collate_fn
 
 
@@ -15,6 +15,8 @@ def _train_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=None):
         dataset = _get_detection_dataset_dicts(cfg.DATASETS.TRAIN)
     if cfg.DATASETS.TYPE =='dsec':
         mapper = DSECDatasetMapper(cfg=cfg, is_train=True, dataset=dataset)
+    elif cfg.DATASETS.TYPE == 'yolo':
+        mapper = YOLODatasetMapper(cfg=cfg, is_train=True, dataset=dataset)
     # todo: 构建sampler
 
     return {
@@ -32,6 +34,8 @@ def _val_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=None):
         dataset = _get_detection_dataset_dicts(cfg.DATASETS.VAL)
     if cfg.DATASETS.TYPE =='dsec':
         mapper = DSECDatasetMapper(cfg=cfg, is_train=True, dataset=dataset)
+    elif cfg.DATASETS.TYPE == 'yolo':
+        mapper = YOLODatasetMapper(cfg=cfg, is_train=True, dataset=dataset)
     # todo: 构建sampler
 
     return {
