@@ -2,7 +2,7 @@ import cv2
 import torch
 from sympy import I
 
-import core.data.datasets
+import core.data.dataset
 from core.config.config import get_cfg
 from core.data.build import (
     _get_detection_dataset_dicts,
@@ -11,7 +11,7 @@ from core.data.build import (
 )
 from core.data.catalog import DatasetCatalog
 from core.data.dataset_mapper import DatasetMapper, MapDataset
-from core.data.datasets.dsec.dsec import dsec_collate_fn
+from core.data.dataset.dsec.dsec import dsec_collate_fn
 from core.evaluation.build import build_evaluator
 from core.evaluation.dsec_eval import DSECEvaluator
 from core.model import build_model
