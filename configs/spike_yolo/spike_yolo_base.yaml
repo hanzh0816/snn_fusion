@@ -256,4 +256,4 @@ DATASETS:
   TRAIN: dsec_train
   VAL: dsec_val
   TEST: dsec_test
-  MODALITY: event
+  MODALITY: events
