@@ -9,8 +9,8 @@ DATALOADER:
 
 
 SOLVER:
-  MAX_ITER: 600000 # around 50 epochs for total_batch_size=4
-  WARMUP_ITERS: 12000 # around 1 epoch
+  MAX_ITER: 600000 # around 100 epochs for total_batch_size=4
+  WARMUP_ITERS: 60000 # around 10 epoch
   LR_SCHEDULER_NAME: WarmupCosineLR
   BASE_LR: 1e-3
   BASE_LR_END: 1e-6
@@ -18,7 +18,7 @@ SOLVER:
     ENABLED: true
 
 TRAINING:
-  NUM_EPOCHS: 1
+  NUM_EPOCHS: 20
   EVAL_PERIOD: 1
 
 WANDB:

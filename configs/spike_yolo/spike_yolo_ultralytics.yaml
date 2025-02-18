@@ -3,7 +3,7 @@ _BASE_: spike_yolo_base.yaml
 EXP_NAME: exp_n_0
 
 MODEL:
-  NAME: SpikeYOLO_v0
+  NAME: OriSpikeYOLO
   SPIKE_CONFIG:
     spike_mode: lif
     tau: 2.0
@@ -14,8 +14,8 @@ MODEL:
 
   HEAD:
     NMS:
-      DYNAMIC_CONF: true
-      CONF_THRES: 0.25
+      DYNAMIC_CONF: false
+      CONF_THRES: 1e-3
       EXP_K: 1.0
 
 DATALOADER:
@@ -38,11 +38,11 @@ DATASETS:
     - name: RandomFlip
 
 SOLVER:
-  MAX_ITER: 600000 # around 50 epochs for total_batch_size=4
-  WARMUP_ITERS: 48000 # around 4 epoch
+  MAX_ITER: 600000 # around 100 epochs for total_batch_size=4
+  WARMUP_ITERS: 60000 # around 10 epoch
   LR_SCHEDULER_NAME: WarmupCosineLR
   BASE_LR: 1e-3
-  BASE_LR_END: 1e-5
+  BASE_LR_END: 5e-4
   AMP:
     ENABLED: true
 
