@@ -1,8 +1,10 @@
 import copy
+import gc
 import itertools
 import logging
+import time
 
-from matplotlib.pylab import f
+from matplotlib.pylab import annotations, f
 import numpy as np
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
@@ -10,13 +12,16 @@ from tabulate import tabulate
 import torch
 
 from core.data.catalog import MetadataCatalog
+from core.structures.boxes import BoxMode
+from core.structures.instances import Instances
 import core.utils.comm as comm
 from core.utils.logger import create_small_table
+
 
 from .evaluator import DatasetEvaluator
 
 try:
-    from core.evaluation.fast_eval_api import COCOeval_opt
+    from detectron2.evaluation.fast_eval_api import COCOeval_opt
 except ImportError:
     COCOeval_opt = COCOeval
 
@@ -58,22 +63,20 @@ class DSECEvaluator(DatasetEvaluator):
         self._predictions = []
 
     def process(self, inputs, outputs):
-        prediction = {}
-        assert "instances" in outputs, "outputs must contain the key 'instances"
-        for input, output in zip(inputs["instances"], outputs["instances"]):
-            pred_instances = output.to(self._cpu_device)
-            gt_instances = input.to(self._cpu_device)
-            prediction["pred_instances"] = pred_instances
-            prediction["gt_instances"] = gt_instances
+        assert "instances" in outputs, "outputs must contain the key 'instances' "
+        for idx in range(len(inputs["instances"])):
+            gt_instances = inputs["instances"][idx]  # type: Instances
+            pred_instances = outputs["instances"][idx].clone().to(self._cpu_device)
 
+            img, gts, preds = self._instances_to_coco_json(gt_instances, pred_instances)
+
+            prediction = {"image": img, "preds": preds, "gts": gts}
             self._predictions.append(prediction)
 
     def evaluate(self):
         if self._distributed:
             comm.synchronize()
-            predictions = comm.gather(self._predictions, dst=0)
-            predictions = list(itertools.chain(*predictions))
-
+            predictions = comm.gather(self._predictions)
             if not comm.is_main_process():
                 return {}
         else:
@@ -84,13 +87,12 @@ class DSECEvaluator(DatasetEvaluator):
             return {}
 
         # 转为coco_dataset json格式和result json格式
-        (dataset, results), num_gts = self._convert_to_coco_format(
+        (dataset, results), img_ids = self._convert_to_coco_format(
             predictions, class_names=self._metadata.get("thing_classes")
         )
         self._coco_api.dataset = dataset
         self._coco_api.createIndex()
 
-        img_ids = np.arange(1, num_gts + 1, dtype=int)
         coco_eval = self._evaluate_predictions_on_coco(
             coco_gt=self._coco_api,
             coco_results=results,
@@ -179,17 +181,26 @@ class DSECEvaluator(DatasetEvaluator):
     ):
         # tag: eval resize之后此处需要传入图像尺寸
         # 将模型输出转换为coco格式
-        flatten_gt = []
-        flatten_pred = []
+        images = []
+        annotations = []
+        results = []
+        img_ids = []
 
+        ann_id = 0
         for prediction in predictions:
-            gt_instances = prediction["gt_instances"]
-            pred_instances = prediction["pred_instances"]
-            flatten_gt.append(gt_instances)
-            flatten_pred.append(pred_instances)
+            images.append(prediction["image"])
+            img_ids.append(prediction["image"]["id"])
 
-        num_det = sum([len(d) for d in flatten_pred])
+            gts = prediction["gts"]
+            preds = prediction["preds"]
+            for gt in gts:
+                gt["id"] = ann_id
+                ann_id += 1
+                annotations.append(gt)
+            for pred in preds:
+                results.append(pred)
 
+        num_det = len(results)
         if num_det == 0:
             self._logger.warning("[DSECEvaluator] No detection for evaluation found.")
 
@@ -197,66 +208,6 @@ class DSECEvaluator(DatasetEvaluator):
             {"id": id + 1, "name": class_name, "supercategory": "none"}
             for id, class_name in enumerate(class_names)
         ]
-        return self._to_coco_format(
-            flatten_gt, flatten_pred, categories, height=height, width=width
-        ), len(flatten_gt)
-
-    @staticmethod
-    def _to_coco_format(gts, detections, categories, height=480, width=640):
-        """
-        utilitary function producing our data in a COCO usable format
-        Args:
-            gts (List[Instances]): list of gt instances
-            detections (List[Tensor]): list of pred instances
-        """
-        # tag: eval resize之后此处需要传入图像尺寸
-        annotations = []
-        results = []
-        images = []
-
-        # to dictionary
-        for image_id, (gt, pred) in enumerate(zip(gts, detections)):
-            im_id = image_id + 1
-
-            images.append(
-                {
-                    "date_captured": "2025",
-                    "file_name": "n.a",
-                    "id": im_id,
-                    "license": 1,
-                    "url": "",
-                    "height": height,
-                    "width": width,
-                }
-            )
-            gt_boxes = gt.gt_bboxes.tensor
-            gt_classes = gt.gt_classes
-
-            for box, cls in zip(gt_boxes, gt_classes):
-                x1, y1, x2, y2 = box
-                w, h = (x2 - x1), (y2 - y1)
-                area = w * h
-
-                annotation = {
-                    "area": float(area),
-                    "iscrowd": False,
-                    "image_id": im_id,
-                    "bbox": [x1, y1, w, h],
-                    "category_id": int(cls) + 1,
-                    "id": len(annotations) + 1,
-                }
-                annotations.append(annotation)
-
-            for pred_result in pred:
-                x1, y1, x2, y2, confidence, class_id = pred_result
-                w, h = (x2 - x1), (y2 - y1)
-                image_result = {
-                    "image_id": im_id,
-                    "category_id": int(class_id) + 1,
-                    "score": float(confidence),
-                    "bbox": [x1, y1, w, h],
-                }
-                results.append(image_result)
 
         dataset = {
             "info": {},
@@ -266,7 +217,55 @@ class DSECEvaluator(DatasetEvaluator):
             "annotations": annotations,
             "categories": categories,
         }
-        return dataset, results
+        return (dataset, results), img_ids
+
+    @staticmethod
+    def _instances_to_coco_json(gt_instances: Instances, pred_instances: torch.Tensor):
+
+        sample_idx = gt_instances._sample_idx
+        ori_shape = gt_instances.image_size
+        height, width = ori_shape
+
+        img = {
+            "date_captured": "2025",
+            "file_name": "n.a",
+            "id": sample_idx,
+            "license": 1,
+            "url": "",
+            "height": height,
+            "width": width,
+        }
+        num_instance = len(gt_instances)
+        boxes = gt_instances.gt_bboxes.tensor.clone().cpu().numpy()
+        boxes = BoxMode.convert(boxes, BoxMode.XYXY_ABS, BoxMode.XYWH_ABS)
+        boxes = boxes.tolist()
+        classes = gt_instances.gt_classes.tolist()
+
+        gts = []
+        for k in range(num_instance):
+            gt = {
+                "image_id": sample_idx,
+                "category_id": int(classes[k]) + 1,
+                "bbox": boxes[k],
+                "area": float(boxes[k][2] * boxes[k][3]),  # w*h
+                "iscrowd": False,
+                "id": None,
+            }
+            gts.append(gt)
+
+        preds = []
+        for pred_result in pred_instances:
+            x1, y1, x2, y2, confidence, class_id = pred_result
+            w, h = int(x2 - x1), int(y2 - y1)
+            image_result = {
+                "image_id": sample_idx,
+                "category_id": int(class_id) + 1,
+                "score": float(confidence),
+                "bbox": [float(x1), float(y1), float(w), float(h)],
+            }
+            preds.append(image_result)
+
+        return img, gts, preds
 
     @staticmethod
     def _evaluate_predictions_on_coco(
