@@ -29,7 +29,7 @@ def register_all_dsec(root):
 
 def register_all_dsec_yolo(root):
     root = Path(os.path.join(root, "DSEC-YOLO"))
-    for name, prefix in [("train", "train"), ("val", "test")]:
+    for name, prefix in [("train", "train"), ("val", "val")]:
         img_path = root / prefix
         name = f"dsec_yolo_{name}"
         DatasetCatalog.register(name, lambda x=img_path, y=prefix: register_dsec_yolo(x, y))

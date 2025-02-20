@@ -977,13 +977,13 @@ class MS_GetT(nn.Module):
             x = (x.unsqueeze(0)).repeat(self.T, 1, 1, 1, 1)
         # elif len(x.shape) == 5:
         #     x = x.transpose(0, 1)  # 1,1,3,256,320 #CHW
-        img = x[0][0]
-        from PIL import Image
+        # img = x[0][0] # C,H,W
+        # from PIL import Image
 
-        img = img.permute(2, 1, 0)  # WhC
-        img = img.detach().cpu().numpy()
-        img = Image.fromarray((img * 255).astype(np.uint8))  # RGB-order PIL image
-        img.save("input.jpg")  # save to disk
+        # img = img.permute(1, 2, 0)  # hwc
+        # img = img.detach().cpu().numpy()
+        # img = Image.fromarray((img * 255).astype(np.uint8))  # RGB-order PIL image
+        # img.save("input.jpg")  # save to disk
 
         return x
 

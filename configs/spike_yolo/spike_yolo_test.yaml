@@ -3,7 +3,7 @@ _BASE_: spike_yolo_base.yaml
 EXP_NAME: exp_n_0
 
 MODEL:
-  NAME: SpikeYOLO_v0
+  NAME: OriSpikeYOLO
   SPIKE_CONFIG:
     spike_mode: lif
     tau: 2.0
